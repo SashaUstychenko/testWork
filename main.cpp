@@ -110,14 +110,13 @@ private:
 
 bool openBox(uint32_t ySize, uint32_t xSize)
 {
-
-    const int MAX_N = 10000; // 100 x 100 максимум
+    const int MAX_N = 10000;
     SecureBox box(ySize, xSize);
     auto state = box.getState();
 
     int N = ySize * xSize;
     std::vector<std::bitset<MAX_N + 1>> matrix(N); //розширенна матриця для метода гауса
-  
+
     // Побудова матриці кофіцієнтів
     for (uint32_t row = 0; row < ySize; ++row)
     {
@@ -125,32 +124,26 @@ bool openBox(uint32_t ySize, uint32_t xSize)
         {
             int idx = row * xSize + col;
 
-            // toggle(row, col) впливає на:
-            // - усі в row
-            // - усі в col
-
-            matrix[idx][idx] = 1; // self
+            matrix[idx][idx] = 1;
             //Перебираємо весь рядок row. Тиснучи на клітинку, ми також змінюємо всі
             //клітинки в цьому рядку — тобто дописуємо 1 до відповідних змінних.
 
             //!bit працює як XOR над 1: тобто, якщо вже стоїть 1, скидає в 0, і навпаки.
             for (uint32_t i = 0; i < xSize; ++i)
-                matrix[idx][row * xSize + i] = !matrix[idx][row * xSize + i]; // row
+                matrix[idx][row * xSize + i] = !matrix[idx][row * xSize + i];
             for (uint32_t i = 0; i < ySize; ++i)
-                matrix[idx][i * xSize + col] = !matrix[idx][i * xSize + col]; // col
+                matrix[idx][i * xSize + col] = !matrix[idx][i * xSize + col];
 
-            // Права частина — чи заблокована ця клітинка
             matrix[idx][MAX_N] = state[row][col];
         }
     }
-
-    //  виконуємо метод Гауса по модулю 2 
-    int row = 0;
+//  виконуємо метод Гауса по модулю 2
+    int rank = 0;
     for (int col = 0; col < N; ++col)
     {
       //Шукаємо перший рядок з 1 в поточному стовпц
         int sel = -1;
-        for (int i = row; i < N; ++i)
+        for (int i = rank; i < N; ++i)
         {
             if (matrix[i][col])
             {
@@ -162,20 +155,41 @@ bool openBox(uint32_t ySize, uint32_t xSize)
         //Якщо не знайшли жодного то переходимо до наступного стовпця
         if (sel == -1) continue;
 
-        std::swap(matrix[row], matrix[sel]);
+        std::swap(matrix[rank], matrix[sel]);
+
         for (int i = 0; i < N; ++i)
         {
-            if (i != row && matrix[i][col])//Обнуляємо всі інші 1 в цьому стовпці за допомогою XOR.
-                matrix[i] ^= matrix[row];
+            if (i != rank && matrix[i][col])//Обнуляємо всі інші 1 в цьому стовпці за допомогою XOR.
+                matrix[i] ^= matrix[rank];
         }
-        row++;
+
+        rank++;
     }
 
+    // Перевіряєм чи  система не має розв’язку
+    for (int i = rank; i < N; ++i)
+    {
+        if (matrix[i][MAX_N]) // 0 == 1 -> немає розв’язку
+            return true; // box залишиться locked
+    }
+    
     std::vector<bool> press(N, false);//вектор press, в якому true означає, що потрібно натиснути на цю клітинку.
-    for (int i = 0; i < N; ++i)
-        press[i] = matrix[i][MAX_N];
+    for (int i = 0; i < rank; ++i)
+    {
+        int leading = -1;// Знаходимо головну, першу ненульову змінну в рядку після Гауса
+        for (int j = 0; j < N; ++j)
+        {
+            if (matrix[i][j])
+            {
+                leading = j;
+                break;
+            }
+        }
+        if (leading != -1)
+            press[leading] = matrix[i][MAX_N];
+    }
 
-    // Застосовуємо toggle() для всіх, де натискати
+    
     for (uint32_t r = 0; r < ySize; ++r)
     {
         for (uint32_t c = 0; c < xSize; ++c)
@@ -188,7 +202,6 @@ bool openBox(uint32_t ySize, uint32_t xSize)
 
     return box.isLocked(); 
 }
-
 
 
 int main(int argc, char* argv[])
